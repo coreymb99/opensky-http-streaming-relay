@@ -1,35 +1,23 @@
 # OpenSky HTTP Streaming Relay Demo
 
-This repository turns the OpenSky REST API into a reproducible Confluent Cloud streaming demo.
+This repository is a reproducible Confluent Cloud demo that polls the OpenSky REST API and publishes snapshots into Kafka.
 
-It preserves the spirit of Confluent's original `demo-scene/http-streaming` walkthrough, but replaces the managed HTTP Source connector with a local relay that polls OpenSky and publishes snapshots into Kafka using the Confluent CLI.
+It is a practical replacement for the original `demo-scene/http-streaming` connector-based flow. Instead of relying on a managed HTTP Source connector, this version uses a local relay that is easier to reproduce and debug.
 
-## Why This Repo Exists
+## What You Get
 
-The original demo is a strong concept, but the managed connector path is not reliable in every environment today:
-
-- the legacy HTTP Source connector configuration is stale
-- the newer HTTP Source V2 connector may still fail if the managed runtime cannot reach `opensky-network.org`
-
-This repo keeps the same use case and exploration flow while making ingestion deterministic and reproducible.
-
-## What This Demo Does
-
-- polls `https://opensky-network.org/api/states/all`
-- limits results to the original Switzerland-focused bounding box
-- normalizes the OpenSky array payload into named fields
-- publishes one snapshot per poll to Kafka topic `all_flights`
-- registers a JSON Schema for the topic value
-- walks through the same Flink SQL shaping and cleansing story as the original demo
+- OpenSky polling every 60 seconds
+- Kafka topic: `all_flights`
+- Schema-managed payloads via JSON Schema
+- Flink SQL walkthrough for exploring and cleansing the data
 
 ## Repository Contents
 
 - `relay_opensky.py`: local OpenSky-to-Kafka relay
-- `opensky_poll.schema.json`: schema for Kafka values
-- `.env.example`: runtime configuration template
-- `sql/flink_demo.sql`: Flink SQL statements for exploration and cleansing
-- `img/`: images adapted from the original demo for the walkthrough
-- `ATTRIBUTION.md`: upstream attribution and adaptation notes
+- `opensky_poll.schema.json`: topic value schema
+- `.env.example`: runtime config template
+- `sql/flink_demo.sql`: Flink SQL walkthrough
+- `img/`: screenshots adapted from the original demo
 
 ## Prerequisites
 
@@ -39,44 +27,56 @@ This repo keeps the same use case and exploration flow while making ingestion de
 - A Kafka cluster
 - A Flink compute pool
 - Kafka API credentials for the cluster
-- Schema Registry credentials with subject registration access
+- Schema Registry API credentials with subject registration access
 
-## Suggested Confluent Cloud Setup
+## Recommended Resource Names
 
-You can reuse an existing environment or create a fresh one for isolation.
-
-Typical resources:
+Use these names to match the demo:
 
 - Kafka cluster: `http-streaming_kafka-cluster`
 - Flink compute pool: `http-streaming`
-- Topic: `all_flights`
+- Kafka topic: `all_flights`
 
-Create the topic if it does not already exist:
+## 1. Create The Topic
 
 ```bash
-confluent kafka topic create all_flights --cluster <KAFKA_CLUSTER_ID> --environment <ENVIRONMENT_ID>
+confluent kafka topic create all_flights \
+  --cluster <KAFKA_CLUSTER_ID> \
+  --environment <ENVIRONMENT_ID>
 ```
 
-## Relay Setup
+## 2. Configure The Relay
 
-1. Copy `.env.example` to `.env`.
-2. Fill in:
-   - `BOOTSTRAP_SERVERS`
-   - `KAFKA_API_KEY`
-   - `KAFKA_API_SECRET`
-   - `SCHEMA_REGISTRY_URL`
-   - `SCHEMA_REGISTRY_API_KEY`
-   - `SCHEMA_REGISTRY_API_SECRET`
-   - `TOPIC`
-3. Leave `POLL_INTERVAL_SECONDS=60` unless you want a different cadence.
+Copy the env template:
 
-## Run The Relay
+```bash
+cp .env.example .env
+```
+
+Fill in these values in `.env`:
+
+- `BOOTSTRAP_SERVERS`
+- `KAFKA_API_KEY`
+- `KAFKA_API_SECRET`
+- `SCHEMA_REGISTRY_URL`
+- `SCHEMA_REGISTRY_API_KEY`
+- `SCHEMA_REGISTRY_API_SECRET`
+- `TOPIC=all_flights`
+- `POLL_INTERVAL_SECONDS=60`
+
+Expected `BOOTSTRAP_SERVERS` format:
+
+```text
+SASL_SSL://pkc-xxxx.us-east-1.aws.confluent.cloud:9092
+```
+
+## 3. Start The Relay
 
 ```bash
 python3 relay_opensky.py
 ```
 
-If successful, you will see output like:
+Expected output:
 
 ```text
 Polling OpenSky every 60s and producing to all_flights
@@ -84,17 +84,11 @@ Successfully registered schema with ID "100043".
 snapshot_time=1774975712 states=88
 ```
 
-## Validate Data In Confluent Cloud
+If you keep the process running, it will publish one OpenSky snapshot every minute.
 
-Open your Confluent Cloud environment and Kafka cluster, then confirm the topic exists and messages are arriving.
+## 4. Verify Kafka Data
 
-Useful original reference screens:
-
-![Cluster](img/cc-cluster.png)
-
-![Topic](img/cc-topic.png)
-
-You can also consume from the topic directly:
+Consume from the topic:
 
 ```bash
 confluent kafka topic consume all_flights \
@@ -108,16 +102,46 @@ confluent kafka topic consume all_flights \
   --from-beginning
 ```
 
-## Explore Raw Data In Flink
+You should see records shaped like:
+
+```json
+{
+  "time": 1774975712,
+  "states": [
+    {
+      "icao24": "39de4b",
+      "callsign": "TVF3589",
+      "origin_country": "France",
+      "time_position": 1774975711,
+      "last_contact": 1774975711,
+      "longitude": 9.1141,
+      "latitude": 45.907,
+      "baro_altitude": 11582.4,
+      "on_ground": false,
+      "velocity": 238.72,
+      "true_track": 283.08,
+      "vertical_rate": -0.33,
+      "sensors": null,
+      "geo_altitude": 11529.06,
+      "squawk": "3716",
+      "spi": false,
+      "position_source": 0
+    }
+  ]
+}
+```
+
+Reference screens from the original demo:
+
+![Cluster](img/cc-cluster.png)
+
+![Topic](img/cc-topic.png)
+
+## 5. Explore In Flink
 
 Once the relay is publishing, `all_flights` becomes available to Flink.
 
-The relay publishes a cleaner structure than the original connector path:
-
-- `time`
-- `states` as an array of typed flight-state objects
-
-You can start with:
+Start with:
 
 ```sql
 SHOW TABLES;
@@ -125,45 +149,52 @@ DESCRIBE all_flights;
 SELECT * FROM all_flights;
 ```
 
-If you want a step-by-step walkthrough, use the statements in `sql/flink_demo.sql`.
+Or run the full walkthrough from:
 
-The original demo entered through a connector validation step:
+```text
+sql/flink_demo.sql
+```
+
+Flink reference screen:
 
 ![Flink compute pool](img/cc-flink-compute-pool.png)
 
-## Shape And Cleanse Data With Flink
+## 6. Shape And Cleanse The Data
 
-The original demo story still applies:
+The raw topic contains one record per poll, with many aircraft in the `states` array.
 
-1. each poll contains many flights
-2. downstream consumers want one aircraft per row
-3. fields should be typed and trimmed into a more usable table
+The Flink SQL walkthrough:
 
-This repo includes a Flink SQL script that creates `all_flights_cleansed` and inserts one row per aircraft from each snapshot.
+- unnests `states`
+- creates one row per aircraft
+- types the fields
+- trims padded string values
+- materializes a cleaner table called `all_flights_cleansed`
 
-The original bounding box remains the same:
+Bounding box used in the demo:
 
 ![Switzerland bounding box](img/bounding-box.png)
 
-## Why The Flink SQL Changed Slightly
+## Why This Version Is Easier To Reproduce
 
-The original connector landed `states` as an array of arrays, so the SQL had to address values by position.
+The original upstream demo depended on a managed HTTP Source connector path that is not consistently reliable now:
 
-This relay publishes named fields instead, which makes the table easier to understand and the downstream SQL more maintainable. The demo outcome is the same, but the raw landing format is better.
+- the old connector config is stale
+- the V2 connector may still fail if the managed runtime cannot reach `opensky-network.org`
+
+This repo avoids that by moving the polling step local while keeping the rest of the demo flow intact.
 
 ## Tear Down
 
-When you are done, stop the relay with `Ctrl-C`.
-
-Then clean up the cloud resources you created for the demo:
-
-- delete the topic if it is demo-only
-- delete the Kafka cluster if it is demo-only
-- delete the Flink compute pool if it is demo-only
-- revoke or delete any temporary API keys you created
+1. Stop the relay with `Ctrl-C`.
+2. Delete demo-only cloud resources:
+   - `all_flights`
+   - `http-streaming_kafka-cluster`
+   - `http-streaming`
+3. Delete any temporary Kafka or Schema Registry API keys you created for the demo.
 
 ## Attribution
 
-This repository adapts the original Confluent `demo-scene/http-streaming` demo and carries forward part of its narrative structure and visual assets under Apache 2.0 terms.
+This repository adapts the original Confluent `demo-scene/http-streaming` demo under Apache 2.0 terms.
 
 See `ATTRIBUTION.md` and `LICENSE`.
