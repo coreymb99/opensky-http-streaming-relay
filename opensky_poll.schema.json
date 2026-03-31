@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenSkyPoll",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "time": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "icao24": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "callsign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin_country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "time_position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "last_contact": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "longitude": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latitude": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "baro_altitude": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "on_ground": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "velocity": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "true_track": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "vertical_rate": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sensors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "geo_altitude": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "squawk": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spi": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "position_source": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "icao24",
+          "callsign",
+          "origin_country",
+          "time_position",
+          "last_contact",
+          "longitude",
+          "latitude",
+          "baro_altitude",
+          "on_ground",
+          "velocity",
+          "true_track",
+          "vertical_rate",
+          "sensors",
+          "geo_altitude",
+          "squawk",
+          "spi",
+          "position_source"
+        ]
+      }
+    }
+  },
+  "required": [
+    "time",
+    "states"
+  ]
+}
