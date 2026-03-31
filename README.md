@@ -4,6 +4,62 @@ This repository is a reproducible Confluent Cloud demo that polls the OpenSky RE
 
 It is a practical replacement for the original `demo-scene/http-streaming` connector-based flow. Instead of relying on a managed HTTP Source connector, this version uses a local relay that is easier to reproduce and debug.
 
+## Quickstart
+
+If you already have:
+
+- a Confluent Cloud environment
+- a Kafka cluster
+- a Flink compute pool
+- Kafka API credentials
+- Schema Registry API credentials
+
+then the shortest path is:
+
+1. Create the topic:
+
+```bash
+confluent kafka topic create all_flights \
+  --cluster <KAFKA_CLUSTER_ID> \
+  --environment <ENVIRONMENT_ID>
+```
+
+2. Copy the env template:
+
+```bash
+cp .env.example .env
+```
+
+3. Fill in `.env`.
+
+4. Start the relay:
+
+```bash
+python3 relay_opensky.py
+```
+
+5. Validate the topic:
+
+```bash
+confluent kafka topic consume all_flights \
+  --bootstrap <BOOTSTRAP_SERVERS> \
+  --api-key <KAFKA_API_KEY> \
+  --api-secret <KAFKA_API_SECRET> \
+  --value-format jsonschema \
+  --schema-registry-endpoint <SCHEMA_REGISTRY_URL> \
+  --schema-registry-api-key <SCHEMA_REGISTRY_API_KEY> \
+  --schema-registry-api-secret <SCHEMA_REGISTRY_API_SECRET> \
+  --from-beginning
+```
+
+6. Run the Flink walkthrough from:
+
+```text
+sql/flink_demo.sql
+```
+
+If you need the full setup flow, including service account and API key creation, continue below.
+
 ## What You Get
 
 - OpenSky polling every 60 seconds
