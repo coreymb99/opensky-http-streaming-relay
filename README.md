@@ -45,7 +45,113 @@ confluent kafka topic create all_flights \
   --environment <ENVIRONMENT_ID>
 ```
 
-## 2. Configure The Relay
+## 2. Create Demo Credentials
+
+If you already have a Kafka API key and Schema Registry API key you want to use, skip to the next section.
+
+Otherwise, this is a clean setup pattern:
+
+1. Create a service account:
+
+```bash
+confluent iam service-account create http-streaming-relay \
+  --description "Service account for OpenSky relay" \
+  -o json
+```
+
+2. Grant it Kafka access on the demo cluster:
+
+```bash
+confluent iam rbac role-binding create \
+  --principal User:<SERVICE_ACCOUNT_ID> \
+  --role CloudClusterAdmin \
+  --environment <ENVIRONMENT_ID> \
+  --cloud-cluster <KAFKA_CLUSTER_ID>
+```
+
+3. Grant it Schema Registry subject access:
+
+```bash
+confluent iam rbac role-binding create \
+  --principal User:<SERVICE_ACCOUNT_ID> \
+  --role ResourceOwner \
+  --environment <ENVIRONMENT_ID> \
+  --schema-registry-cluster <SCHEMA_REGISTRY_CLUSTER_ID> \
+  --resource "Subject:*"
+```
+
+4. Create a Kafka API key:
+
+```bash
+confluent api-key create \
+  --resource <KAFKA_CLUSTER_ID> \
+  --service-account <SERVICE_ACCOUNT_ID> \
+  --environment <ENVIRONMENT_ID> \
+  -o json
+```
+
+5. Create a Schema Registry API key:
+
+```bash
+confluent api-key create \
+  --resource <SCHEMA_REGISTRY_CLUSTER_ID> \
+  --service-account <SERVICE_ACCOUNT_ID> \
+  --environment <ENVIRONMENT_ID> \
+  -o json
+```
+
+If you want a shell-friendly setup flow, export the IDs first:
+
+```bash
+export ENVIRONMENT_ID=env-xxxxxx
+export KAFKA_CLUSTER_ID=lkc-xxxxxx
+export SCHEMA_REGISTRY_CLUSTER_ID=lsrc-xxxxxx
+```
+
+Then create everything:
+
+```bash
+SA_JSON=$(confluent iam service-account create http-streaming-relay \
+  --description "Service account for OpenSky relay" \
+  -o json)
+export SERVICE_ACCOUNT_ID=$(echo "$SA_JSON" | jq -r '.id')
+
+confluent iam rbac role-binding create \
+  --principal User:$SERVICE_ACCOUNT_ID \
+  --role CloudClusterAdmin \
+  --environment $ENVIRONMENT_ID \
+  --cloud-cluster $KAFKA_CLUSTER_ID
+
+confluent iam rbac role-binding create \
+  --principal User:$SERVICE_ACCOUNT_ID \
+  --role ResourceOwner \
+  --environment $ENVIRONMENT_ID \
+  --schema-registry-cluster $SCHEMA_REGISTRY_CLUSTER_ID \
+  --resource "Subject:*"
+
+KAFKA_KEY_JSON=$(confluent api-key create \
+  --resource $KAFKA_CLUSTER_ID \
+  --service-account $SERVICE_ACCOUNT_ID \
+  --environment $ENVIRONMENT_ID \
+  -o json)
+
+SR_KEY_JSON=$(confluent api-key create \
+  --resource $SCHEMA_REGISTRY_CLUSTER_ID \
+  --service-account $SERVICE_ACCOUNT_ID \
+  --environment $ENVIRONMENT_ID \
+  -o json)
+```
+
+Extract the credentials:
+
+```bash
+export KAFKA_API_KEY=$(echo "$KAFKA_KEY_JSON" | jq -r '.api_key')
+export KAFKA_API_SECRET=$(echo "$KAFKA_KEY_JSON" | jq -r '.api_secret')
+export SCHEMA_REGISTRY_API_KEY=$(echo "$SR_KEY_JSON" | jq -r '.api_key')
+export SCHEMA_REGISTRY_API_SECRET=$(echo "$SR_KEY_JSON" | jq -r '.api_secret')
+```
+
+## 3. Configure The Relay
 
 Copy the env template:
 
@@ -70,7 +176,7 @@ Expected `BOOTSTRAP_SERVERS` format:
 SASL_SSL://pkc-xxxx.us-east-1.aws.confluent.cloud:9092
 ```
 
-## 3. Start The Relay
+## 4. Start The Relay
 
 ```bash
 python3 relay_opensky.py
@@ -86,7 +192,7 @@ snapshot_time=1774975712 states=88
 
 If you keep the process running, it will publish one OpenSky snapshot every minute.
 
-## 4. Verify Kafka Data
+## 5. Verify Kafka Data
 
 Consume from the topic:
 
@@ -137,7 +243,7 @@ Reference screens from the original demo:
 
 ![Topic](img/cc-topic.png)
 
-## 5. Explore In Flink
+## 6. Explore In Flink
 
 Once the relay is publishing, `all_flights` becomes available to Flink.
 
@@ -159,7 +265,7 @@ Flink reference screen:
 
 ![Flink compute pool](img/cc-flink-compute-pool.png)
 
-## 6. Shape And Cleanse The Data
+## 7. Shape And Cleanse The Data
 
 The raw topic contains one record per poll, with many aircraft in the `states` array.
 
